@@ -4,7 +4,8 @@ import pygame
 # inicializamos puntaje
 score_player_one = 0
 score_player_two = 0
-number_of_game = 0
+number_of_game = 1
+total_points = 0
 # Incializar
 pygame.init()
 # Colores
@@ -37,17 +38,17 @@ pelota_y = pantalla_y // 2
 mov_pelota_x = 3
 mov_pelota_y = 3
 # Flag: bandera de fin de juego
-force_game_over = False
 game_over = False
-while not force_game_over:
-    while not game_over:
+while not game_over:
+    while total_points < 10:
 
         # Gestionar eventos: detecta las acciones de los usuarios
         for evento in pygame.event.get():
-            # print(evento)
+            print(evento)
             # Cuando presione X, debe salir
-            if evento.type == pygame.QUIT:
-                force_game_over = True
+            if evento.type == pygame.WINDOWCLOSE:
+                game_over = True
+                total_points = 99
             # Si se presiona una tecla
             if evento.type == pygame.KEYDOWN:
                 # Jugador 1
@@ -73,11 +74,6 @@ while not force_game_over:
                 if evento.key == pygame.K_DOWN:
                     mov_jugador2 = 0
 
-        if number_of_game % 2 == 0 and (pelota_x < 0 or pelota_x > pantalla_x):
-            mov_pelota_x += number_of_game
-            mov_pelota_y += number_of_game
-        # Validación
-
         if pelota_y > pantalla_y or pelota_y < 0:
             mov_pelota_y *= -1
         # Si la pelota sale por el lado izquierdo o derecho es porque alguien perdió y guardamos puntaje
@@ -88,14 +84,14 @@ while not force_game_over:
             mov_pelota_x *= -1
             mov_pelota_y *= -1
             score_player_one += 1
-            number_of_game += 1
+            total_points += 1
         elif pelota_x > pantalla_x:
             pelota_x = pantalla_x // 2
             pelota_y = pantalla_y // 2
             mov_pelota_x *= -1
             mov_pelota_y *= -1
             score_player_two += 1
-            number_of_game += 1
+            total_points += 1
 
         if number_of_game == 10:
             game_over = True
@@ -131,13 +127,20 @@ while not force_game_over:
         speed = pygame.font.SysFont("Arial", 20).render(
             str(abs(mov_pelota_x)), 2, (255, 255, 255)
         )
-        ngame = pygame.font.SysFont("Arial", 20).render(
+        total_points_display = pygame.font.SysFont("Arial", 20).render(
+            str(total_points), 2, (255, 255, 255)
+        )
+        number_of_game_display = pygame.font.SysFont("Arial", 20).render(
             str(number_of_game), 2, (255, 255, 255)
         )
         speed_text = pygame.font.SysFont("Arial", 20).render(
             str("Velocidad: "), 2, (255, 255, 255)
         )
-        ngame_text = pygame.font.SysFont("Arial", 20).render(
+        total_points_text = pygame.font.SysFont("Arial", 20).render(
+            str("Puntos totales: "), 2, (255, 255, 255)
+        )
+
+        number_of_game_text = pygame.font.SysFont("Arial", 20).render(
             str("Número de partido: "), 2, (255, 255, 255)
         )
 
@@ -146,46 +149,55 @@ while not force_game_over:
         pantalla.blit(scored_player_one, (100, 10))
         pantalla.blit(scored_player_two, (pantalla_x - 100, 10))
         pantalla.blit(speed, (380, pantalla_y - 50))
-        pantalla.blit(ngame, (200, pantalla_y - 50))
+        pantalla.blit(number_of_game_display, (600, pantalla_y - 50))
+        pantalla.blit(total_points_display, (200, pantalla_y - 50))
         pantalla.blit(speed_text, (300, pantalla_y - 50))
-        pantalla.blit(ngame_text, (50, pantalla_y - 50))
+        pantalla.blit(total_points_text, (50, pantalla_y - 50))
+        pantalla.blit(number_of_game_text, (420, pantalla_y - 50))
 
         pygame.display.flip()
         # FPS
         reloj.tick(60)
 
-    pygame.display.flip()
-    pantalla.fill((0, 0, 0))
-    gameover_text = pygame.font.SysFont("Arial", 100).render(
-        str("GAMEOVER"), 2, (255, 255, 255)
-    )
-    gameover_text_rect = gameover_text.get_rect(
-        center=(pantalla_x // 2, pantalla_y // 2)
-    )
+    if total_points >= 10:
 
-    press_any_key = pygame.font.SysFont("Arial", 25).render(
-        str("Press Any Key to try again"), 2, (255, 255, 255)
-    )
-    press_any_key_rect = press_any_key.get_rect(
-        center=(pantalla_x // 2, pantalla_y // 2 + 250)
-    )
+        pygame.display.flip()
+        pantalla.fill((0, 0, 0))
+        gameover_text = pygame.font.SysFont("Arial", 100).render(
+            str("GAMEOVER"), 2, (255, 255, 255)
+        )
+        gameover_text_rect = gameover_text.get_rect(
+            center=(pantalla_x // 2, pantalla_y // 2)
+        )
 
-    pantalla.blit(gameover_text, gameover_text_rect)
-    pantalla.blit(press_any_key, press_any_key_rect)
+        press_any_key = pygame.font.SysFont("Arial", 25).render(
+            str("Presione cualquier tecla para ir al siguiente partido"),
+            2,
+            (255, 255, 255),
+        )
+        press_any_key_rect = press_any_key.get_rect(
+            center=(pantalla_x // 2, pantalla_y // 2 + 250)
+        )
 
-    for evento in pygame.event.get():
-        if evento.type == pygame.QUIT:
-            force_game_over = True
-        if evento.type == pygame.KEYUP:
-            game_over = False
-            mov_pelota_x = 3
-            mov_pelota_y = 3
-            score_player_one = 0
-            score_player_two = 0
-            number_of_game = 0
-            jugador1_x = 50
-            jugador1_y = (pantalla_y // 2) - (alto_jugador // 2)
-            jugador2_x = (pantalla_x - 50) - ancho_jugador
-            jugador2_y = (pantalla_y // 2) - (alto_jugador // 2)
-        break
-pygame.display.flip()
+        pantalla.blit(gameover_text, gameover_text_rect)
+        pantalla.blit(press_any_key, press_any_key_rect)
+
+        for evento in pygame.event.get():
+            print(evento)
+            if evento.type == pygame.WINDOWCLOSE:
+                game_over = True
+            if evento.type == pygame.KEYDOWN:
+                number_of_game += 1
+                game_over = False
+                if number_of_game % 3 == 0:
+                    mov_pelota_x = 3 + (number_of_game - 1)
+                    mov_pelota_y = 3 + (number_of_game - 1)
+                score_player_one = 0
+                score_player_two = 0
+                total_points = 0
+                jugador1_x = 50
+                jugador1_y = (pantalla_y // 2) - (alto_jugador // 2)
+                jugador2_x = (pantalla_x - 50) - ancho_jugador
+                jugador2_y = (pantalla_y // 2) - (alto_jugador // 2)
+            pygame.display.flip()
+        pygame.display.flip()
