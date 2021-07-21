@@ -8,7 +8,7 @@ import button
 
 pg.init()
 
-gametitle = "Zombie Rush"
+gametitle = "Graveyard adventures"
 gameRun = True
 
 
