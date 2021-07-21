@@ -33,7 +33,7 @@ FPS = 60
 # Game variables
 background = pg.image.load("ProyectoFinal\\assets\\maps\\bg.png")
 gravity = 0.75
-
+tile_size = 50
 
 # Player variables
 moving_left = False
