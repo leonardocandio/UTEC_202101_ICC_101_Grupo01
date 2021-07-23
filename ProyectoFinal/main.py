@@ -8,7 +8,7 @@ import button
 
 pg.init()
 
-gametitle = "Graveyard adventures"
+gametitle = "Graveyard Adventures"
 gameRun = True
 
 
@@ -47,16 +47,42 @@ def drawBG():
 class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
     def __init__(self, char_type, xpos, ypos, scale, speed):
         pg.sprite.Sprite.__init__(self)
+        self.alive = False
         self.char_type = char_type
         self.speed = speed
         self.direction = 1
+        self.vel_y = 0
+        self.jump = False
+        self.isJumping = False
         self.flip = False
-        avatar = pg.image.load(
-            f"ProyectoFinal\\assets\\{self.char_type}\\Idle\\Idle (1).png"
-        )
-        self.avatar = pg.transform.scale(
-            avatar, (int(scale * avatar.get_width()), int(scale * avatar.get_height()))
-        )
+        self.animation_list = []
+        self.frame_index = 0
+        self.action = 0
+        self.update_time = pg.time.get_ticks()
+        """
+        Animation indexes:
+        - idle:0
+        - walk:1
+        - jump:2
+        - dead:3
+        """
+        animation_types = ["idle", "walk", "jump"]
+        for animation in animation_types:
+            temp_list = []
+            num_of_frames = len(
+                os.listdir(f"ProyectoFinal\\assets\\{self.char_type}\\{animation}")
+            )
+            for i in range(num_of_frames):
+                avatar = pg.image.load(
+                    f"ProyectoFinal\\assets\\{self.char_type}\\{animation}\\{animation}{i}.png"
+                )
+                avatar = pg.transform.scale(
+                    avatar,
+                    (int(scale * avatar.get_width()), int(scale * avatar.get_height())),
+                )
+                temp_list.append(avatar)
+            self.animation_list.append(temp_list)
+        self.avatar = self.animation_list[self.action][self.frame_index]
         self.hitbox = self.avatar.get_rect()
         self.hitbox.center = (xpos, ypos)
 
@@ -79,12 +105,27 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
         self.hitbox.x += dxpos
         self.hitbox.y += dypos
 
+    def update_animation(self):
+        cooldown = 80
+        self.avatar = self.animation_list[self.action][self.frame_index]
+        if pg.time.get_ticks() - self.update_time > cooldown:
+            self.update_time = pg.time.get_ticks()
+            self.frame_index += 1
+        if self.frame_index >= len(self.animation_list[self.action]):
+            self.frame_index = 0
+
+    def update_action(self, new_action):
+        if new_action != self.action:
+            self.action = new_action
+            self.frame_index = 1
+            self.update_time = pg.time.get_ticks()
+
     def draw(self):
         screen.blit(pg.transform.flip(self.avatar, self.flip, False), self.hitbox)
 
 
-player = Entity("player", screen_width // 2, screen_height // 2, 0.10, 5)
-zombiemale = Entity("zombiemale", screen_width // 4, screen_height // 2, 0.17, 5)
+player = Entity("player", screen_width // 2, screen_height // 2, 0.2, 5)
+zombie = Entity("zombiemale", screen_width // 4, screen_height // 2, 0.3, 5)
 
 """
 ===============
@@ -95,9 +136,15 @@ while gameRun:
 
     clock.tick(FPS)
     drawBG()
-    zombiemale.draw()
+    zombie.update_animation()
+    player.update_animation()
+    zombie.draw()
     player.draw()
 
+    if moving_left or moving_right:
+        player.update_action(1)  # update animation to running (1)
+    else:
+        player.update_action(0)
     player.move(moving_left, moving_right)
 
     for event in pg.event.get():  # Event handler
