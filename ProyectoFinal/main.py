@@ -8,8 +8,8 @@ import button
 
 pg.init()
 
-gametitle = "Graveyard Adventures"
-gameRun = True
+GAMETITLE = "Graveyard Adventures"
+gameRunning = True
 
 
 # Loading score data from JSON file
@@ -21,19 +21,20 @@ with open("ProyectoFinal\\assets\\scores.json", "a+") as scores_json:
 
 
 # Init screen
-screen_width = 1280
-screen_height = int(screen_width * 9 / 16)
-screen = pg.display.set_mode((screen_width, screen_height))
-pg.display.set_caption(gametitle)
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = int(SCREEN_WIDTH * 9 / 16)
+screen = pg.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pg.display.set_caption(GAMETITLE)
 
 # Set framerate
 clock = pg.time.Clock()
 FPS = 60
 
 # Game variables
-background = pg.image.load("ProyectoFinal\\assets\\maps\\bg.png")
-gravity = 0.75
-tile_size = 50
+BACKGROUND = pg.image.load("ProyectoFinal\\assets\\maps\\bg.png")
+GRAVITY = 0.75
+TILE_SIZE = 50
+S = 0.23
 
 # Player variables
 moving_left = False
@@ -41,19 +42,28 @@ moving_right = False
 
 
 def drawBG():
-    screen.blit(background, (0, 0))
+    screen.blit(BACKGROUND, (0, 0))
+    pg.draw.line(screen, (255, 255, 255), (0, 550), (SCREEN_WIDTH, 550))
+
+
+def ss(scale, c="z"):
+    return scale * 0.60 if c == "p" else scale
 
 
 class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
-    def __init__(self, char_type, xpos, ypos, scale, speed):
+    def __init__(self, char_type, xpos, ypos, scale, speed_xpos):
         pg.sprite.Sprite.__init__(self)
-        self.alive = False
+        self.alive = True
         self.char_type = char_type
-        self.speed = speed
+        self.speed_xpos = speed_xpos
+        self.attack_cooldown = 0
+        self.health = 30
+        self.max_health = self.health
         self.direction = 1
-        self.vel_y = 0
+        self.speed_ypos = 0
         self.jump = False
-        self.isJumping = False
+        self.isJumping = True
+        self.attacking = False
         self.flip = False
         self.animation_list = []
         self.frame_index = 0
@@ -64,9 +74,10 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
         - idle:0
         - walk:1
         - jump:2
-        - dead:3
+        - attack:3
+        - death:4
         """
-        animation_types = ["idle", "walk", "jump"]
+        animation_types = ["idle", "walk", "jump", "attack", "death"]
         for animation in animation_types:
             temp_list = []
             num_of_frames = len(
@@ -83,27 +94,47 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
                 temp_list.append(avatar)
             self.animation_list.append(temp_list)
         self.avatar = self.animation_list[self.action][self.frame_index]
-        self.hitbox = self.avatar.get_rect()
-        self.hitbox.center = (xpos, ypos)
+        self.rect = self.avatar.get_rect()
+        self.rect.center = (xpos, ypos)
+
+    def update(self):
+        self.attack()
+        self.update_animation()
+        self.check_alive()
+        if self.attack_cooldown > 0:
+            self.attack_cooldown -= 1
 
     def move(self, moving_left, moving_right):
         # Reset variables
         dxpos = 0
         dypos = 0
 
-        # Assing variables
-        if moving_left:
-            dxpos = -self.speed
+        # Movement variables
+        if moving_left:  # left
+            dxpos = -self.speed_xpos
             self.flip = True
             self.direction = 1
-        if moving_right:
-            dxpos = self.speed
+        if moving_right:  # right
+            dxpos = self.speed_xpos
             self.flip = False
             self.direction = -1
+        if self.jump and not self.isJumping:  # jump
+            self.speed_ypos = -11
+            self.jump = False
+            self.isJumping = True
+
+        # Gravity implementation
+        self.speed_ypos += GRAVITY
+        self.speed_ypos = min(self.speed_ypos, 10)
+        dypos += self.speed_ypos
+
+        if self.rect.bottom + dypos > 550:
+            dypos = 550 - self.rect.bottom
+            self.isJumping = False
 
         # Change movement speed
-        self.hitbox.x += dxpos
-        self.hitbox.y += dypos
+        self.rect.x += dxpos
+        self.rect.y += dypos
 
     def update_animation(self):
         cooldown = 80
@@ -113,6 +144,12 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
             self.frame_index += 1
         if self.frame_index >= len(self.animation_list[self.action]):
             self.frame_index = 0
+            if self.action == 4:
+                self.frame_index = len(self.animation_list[self.action]) - 1
+            else:
+                self.frame_index = 0
+            if self.char_type == "zombiemale" and self.attacking:
+                self.attacking = False
 
     def update_action(self, new_action):
         if new_action != self.action:
@@ -120,44 +157,101 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
             self.frame_index = 1
             self.update_time = pg.time.get_ticks()
 
+    def check_alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.speed = 0
+            self.alive = False
+            self.update_action(4)
+
     def draw(self):
-        screen.blit(pg.transform.flip(self.avatar, self.flip, False), self.hitbox)
+        screen.blit(pg.transform.flip(self.avatar, self.flip, False), self.rect)
+
+    def attack(self):
+        if self.attack_cooldown == 0 and pg.sprite.spritecollide(
+            player, zombie_group, False
+        ):
+            self.attack_cooldown = 120
+            if player.alive and self.char_type == "zombiemale":
+                print("col")
+                self.attacking = True
+                player.health -= 10
+                print(player.health)
 
 
-player = Entity("player", screen_width // 2, screen_height // 2, 0.2, 5)
-zombie = Entity("zombiemale", screen_width // 4, screen_height // 2, 0.3, 5)
+zombie_group = pg.sprite.Group()
 
+player = Entity("player", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, ss(S, c="p"), 5)
+zombie = Entity(
+    "zombiemale",
+    SCREEN_WIDTH // 4,
+    SCREEN_HEIGHT // 2,
+    ss(S),
+    5,
+)
+zombie_group.add(zombie)
+zombie1 = Entity(
+    "zombiemale",
+    SCREEN_WIDTH,
+    SCREEN_HEIGHT // 3,
+    ss(S),
+    5,
+)
+zombie_group.add(zombie1)
 """
 ===============
 MAIN GAME LOOP
 ===============
+
+Animation indexes:
+- idle:0
+- walk:1
+- jump:2
+- attack:3
+- death:4
 """
-while gameRun:
+
+while gameRunning:
 
     clock.tick(FPS)
+
     drawBG()
-    zombie.update_animation()
-    player.update_animation()
-    zombie.draw()
+
+    for zombie_sprite in zombie_group:
+        zombie_sprite.move(False, False)
+        zombie_sprite.draw()
+        zombie_sprite.update()
+        if zombie_sprite.attacking:
+            zombie_sprite.update_action(3)
+        else:
+            zombie_sprite.update_action(0)
+
+    player.update()
+
     player.draw()
 
-    if moving_left or moving_right:
-        player.update_action(1)  # update animation to running (1)
-    else:
-        player.update_action(0)
-    player.move(moving_left, moving_right)
+    if player.alive:
+        if player.isJumping:
+            player.update_action(2)  # update animation to jumping (index 2)
+        elif moving_left or moving_right:
+            player.update_action(1)  # update animation to walking (index 1)
+        else:
+            player.update_action(0)
+        player.move(moving_left, moving_right)
 
     for event in pg.event.get():  # Event handler
         if event.type == pg.QUIT:  # Close game
-            gameRun = False
+            gameRunning = False
 
-        if event.type == pg.KEYDOWN:
+        if event.type == pg.KEYDOWN and player.alive:
             if event.key == pg.K_a:
                 moving_left = True
             if event.key == pg.K_d:
                 moving_right = True
+            if event.key == pg.K_w:
+                player.jump = True
             if event.key == pg.K_ESCAPE:
-                gameRun = False
+                gameRunning = False
 
         if event.type == pg.KEYUP:
             if event.key == pg.K_a:
