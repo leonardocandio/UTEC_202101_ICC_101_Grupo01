@@ -67,7 +67,6 @@ def draw_text(text, font, color, xpos, ypos):
 
 def drawBG():
     screen.blit(BACKGROUND, (0, 0))
-    pg.draw.line(screen, (255, 255, 255), (0, 550), (SCREEN_WIDTH, 550))
 
 
 def ss(scale, c="z"):
@@ -122,8 +121,9 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
                 temp_list.append(image)
             self.animation_list.append(temp_list)
         self.image = self.animation_list[self.action][self.frame_index]
-        self.rect = self.image.get_rect()
-        self.rect.center = (xpos, ypos)
+        self.rect = self.image.get_rect(center=(xpos, ypos))
+        self.width = self.image.get_width()
+        self.height = self.image.get_height()
 
     def update(self):
         self.check_attack()
@@ -156,10 +156,20 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
         self.speed_ypos = min(self.speed_ypos, 10)
         dypos += self.speed_ypos
 
-        if self.rect.bottom + dypos > 550:
-            dypos = 550 - self.rect.bottom
-            self.isJumping = False
-
+        for tile in world.obstacle_list:
+            if tile[1].colliderect(
+                self.rect.x + dxpos, self.rect.y, self.width, self.height
+            ):
+                dxpos = 0
+            if tile[1].colliderect(
+                self.rect.x, self.rect.y + dypos, self.width, self.height
+            ):
+                if self.speed_ypos < 0:
+                    dypos = tile[1].bottom - self.rect.top
+                else:
+                    dypos = tile[1].top - self.rect.bottom
+                self.speed_ypos = 0
+                self.isJumping = False
         # Change movement speed
         self.rect.x += dxpos
         self.rect.y += dypos
@@ -191,6 +201,7 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
 
     def draw(self):
         screen.blit(pg.transform.flip(self.image, self.flip, False), self.rect)
+        pg.draw.rect(screen, (255, 255, 255), self.rect, 1)
 
     def check_attack(self):
         if (
