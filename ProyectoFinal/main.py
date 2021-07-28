@@ -1,10 +1,10 @@
 import pygame as pg
-from pygame import mixer
 import os
 import random
 import csv
 import json
 import button
+from pygame import mixer
 
 pg.init()
 
@@ -13,7 +13,7 @@ gameRunning = True
 
 
 # Loading score data from JSON file
-with open("ProyectoFinal\\assets\\scores.json", "a+") as scores_json:
+with open("ProyectoFinal\\assets\\scores.json", "r") as scores_json:
     try:
         scores = json.load(scores_json)
     except json.decoder.JSONDecodeError:
@@ -33,11 +33,24 @@ FPS = 60
 # Game variables
 BACKGROUND = pg.image.load("ProyectoFinal\\assets\\maps\\bg.png").convert_alpha()
 pumpkin_img = pg.image.load(
-    f"ProyectoFinal\\assets\\maps\\ico\\pumpkin.png"
+    f"ProyectoFinal\\assets\\maps\\items\\pumpkin.png"
 ).convert_alpha()
+
+
 GRAVITY = 0.4
-TILE_SIZE = 80
 S = 0.23
+ROWS = 9
+COLS = 126
+TILE_SIZE = SCREEN_HEIGHT // ROWS
+TILE_TYPES = len(os.listdir("ProyectoFinal\\assets\\maps\\tiles"))
+level = 0
+
+img_list = []
+for x in range(TILE_TYPES):
+    img = pg.image.load(f"ProyectoFinal\\assets\\maps\\tiles\\tile{x}.png")
+    img = pg.transform.scale(img, (TILE_SIZE, TILE_SIZE))
+    img_list.append(img)
+
 
 # Player variables
 moving_left = False
@@ -71,7 +84,8 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
         self.health = 30
         self.score = 0
         self.max_health = self.health
-        self.direction = 1
+        self.direction = 1 if char_type == "player" else random.choice((-1, 1))
+        self.move_counter = 0
         self.speed_ypos = 0
         self.jump = False
         self.isJumping = True
@@ -81,6 +95,8 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
         self.frame_index = 0
         self.action = 0
         self.update_time = pg.time.get_ticks()
+        self.idling = False
+        self.idling_counter = 0
         """
         Animation indexes:
         - idle:0
@@ -96,17 +112,17 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
                 os.listdir(f"ProyectoFinal\\assets\\{self.char_type}\\{animation}")
             )
             for i in range(num_of_frames):
-                avatar = pg.image.load(
+                image = pg.image.load(
                     f"ProyectoFinal\\assets\\{self.char_type}\\{animation}\\{animation}{i}.png"
                 ).convert_alpha()
-                avatar = pg.transform.scale(
-                    avatar,
-                    (int(scale * avatar.get_width()), int(scale * avatar.get_height())),
+                image = pg.transform.scale(
+                    image,
+                    (int(scale * image.get_width()), int(scale * image.get_height())),
                 )
-                temp_list.append(avatar)
+                temp_list.append(image)
             self.animation_list.append(temp_list)
-        self.avatar = self.animation_list[self.action][self.frame_index]
-        self.rect = self.avatar.get_rect()
+        self.image = self.animation_list[self.action][self.frame_index]
+        self.rect = self.image.get_rect()
         self.rect.center = (xpos, ypos)
 
     def update(self):
@@ -125,13 +141,13 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
         if moving_left:  # left
             dxpos = -self.speed_xpos
             self.flip = True
-            self.direction = 1
+            self.direction = -1
         if moving_right:  # right
             dxpos = self.speed_xpos
             self.flip = False
-            self.direction = -1
+            self.direction = 1
         if self.jump and not self.isJumping:  # jump
-            self.speed_ypos = -11
+            self.speed_ypos = -12
             self.jump = False
             self.isJumping = True
 
@@ -150,7 +166,7 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
 
     def update_animation(self):
         cooldown = 80
-        self.avatar = self.animation_list[self.action][self.frame_index]
+        self.image = self.animation_list[self.action][self.frame_index]
         if pg.time.get_ticks() - self.update_time > cooldown:
             self.update_time = pg.time.get_ticks()
             self.frame_index += 1
@@ -158,8 +174,7 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
             self.frame_index = 0
             if self.action == 4:
                 self.frame_index = len(self.animation_list[self.action]) - 1
-            if "zombie" in self.char_type and self.isAttacking:
-                self.isAttacking = False
+            self.isAttacking = False
 
     def update_action(self, new_action):
         if new_action != self.action:
@@ -175,8 +190,7 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
             self.update_action(4)
 
     def draw(self):
-        screen.blit(pg.transform.flip(self.avatar, self.flip, False), self.rect)
-        pg.draw.rect(screen, (255, 255, 255), self.rect, 1)
+        screen.blit(pg.transform.flip(self.image, self.flip, False), self.rect)
 
     def check_attack(self):
         if (
@@ -185,20 +199,115 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
             and "zombie" in self.char_type
             and pg.sprite.collide_rect(self, player)
         ):
-            self.attack_cooldown = 90
+            self.attack_cooldown = 45
             self.attack()
 
     def attack(self):
         self.isAttacking = True
         player.health -= 10
 
+    def ai(self):
+        if not self.idling:
+            self.extracted_from_ai()
+            if random.randint(1, 300) == 1:
+                self.idle(0, 50)
+        if self.isAttacking:
+            self.idle(3, 7)
+        else:
+            self.idling_counter -= 1
+            if self.idling_counter <= 0:
+                self.idling = False
+
+    def idle(self, arg0, arg1):
+        self.update_action(arg0)
+        self.idling = True
+        self.idling_counter = arg1
+
+    def extracted_from_ai(self):
+        ai_moving_right = self.direction == 1
+        ai_moving_left = not ai_moving_right
+        self.move(ai_moving_left, ai_moving_right)
+        self.update_action(1)
+        self.move_counter += 1
+        if self.move_counter > TILE_SIZE:
+            self.direction *= -1
+            self.move_counter *= -1
+
+
+class World:
+    def __init__(self):
+        self.obstacle_list = []
+
+    def process_maindata(self, data):
+        d = {25: "candy", 26: "cupcake", 27: "pumpkin", 28: "player", 29: "zombiemale"}
+        # iterate trough tile values in data file
+        for y, row in enumerate(data):
+            for x, tile in enumerate(row):
+                if tile >= 0:
+                    img = img_list[tile]
+                    img_rect = img.get_rect()
+                    img_rect.x = x * TILE_SIZE
+                    img_rect.y = y * TILE_SIZE
+                    tile_data = (img, img_rect)
+                    if tile <= 15:  # blocks
+                        self.obstacle_list.append(tile_data)
+                    elif tile in [16, 30]:
+                        collision_tile = CollisionTile(
+                            img, x * TILE_SIZE, y * TILE_SIZE, "exit"
+                        )
+                        collision_tile_group.add(collision_tile)
+                    elif tile in range(17, 25):  # decoration
+                        decoration = Decoration(img, x * TILE_SIZE, y * TILE_SIZE)
+                        decoration_group.add(decoration)
+                    elif tile in range(25, 28):  # items
+                        item = Item(d[tile], x * TILE_SIZE, y * TILE_SIZE)
+                        item_group.add(item)
+                    elif tile in [28, 29]:
+                        if tile == 28:
+                            player = Entity(
+                                d[tile], x * TILE_SIZE, y * TILE_SIZE, ss(S, "p"), 5
+                            )
+                        else:
+                            zombie = Entity(
+                                d[tile], x * TILE_SIZE, y * TILE_SIZE, ss(S), 3
+                            )
+                            zombie_group.add(zombie)
+
+        return player
+
+    def draw(self):
+        for tile in self.obstacle_list:
+            screen.blit(tile[0], tile[1])
+
+
+class Decoration(pg.sprite.Sprite):
+    def __init__(self, img, x, y):
+        pg.sprite.Sprite.__init__(self)
+        self.image = img
+        self.rect = self.image.get_rect()
+        self.rect.midtop = (
+            x + TILE_SIZE // 2,
+            y + (TILE_SIZE - self.image.get_height()),
+        )
+
+
+class CollisionTile(pg.sprite.Sprite):
+    def __init__(self, img, x, y, tile_type):
+        pg.sprite.Sprite.__init__(self)
+        self.image = img
+        self.rect = self.image.get_rect()
+        self.rect.midtop = (
+            x + TILE_SIZE // 2,
+            y + (TILE_SIZE - self.image.get_height()),
+        )
+
 
 class Item(pg.sprite.Sprite):  # Entity class for players and zombies
     def __init__(self, item_type, xpos, ypos):
-        self.item_type = item_type
         pg.sprite.Sprite.__init__(self)
+        self.item_type = item_type
         self.image = pg.image.load(
-            f"ProyectoFinal\\assets\\maps\\ico\\{self.item_type}.png"
+            f"ProyectoFinal\\assets\\maps\\items\\{self.item_type}.png"
         )
         self.rect = self.image.get_rect()
         self.rect.midtop = (
@@ -223,34 +332,27 @@ class Item(pg.sprite.Sprite):  # Entity class for players and zombies
 
 zombie_group = pg.sprite.Group()
 item_group = pg.sprite.Group()
+decoration_group = pg.sprite.Group()
+collision_tile_group = pg.sprite.Group()
 
-# temporary
-
-item0 = Item("candy", 100, 300)
-item_group.add(item0)
-item1 = Item("pumpkin", 400, 300)
-item_group.add(item1)
-item2 = Item("cupcake", 500, 300)
-item_group.add(item2)
+groups = [item_group, decoration_group, collision_tile_group]
 
 
-player = Entity("player", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, ss(S, c="p"), 5)
-zombie = Entity(
-    "zombiemale",
-    SCREEN_WIDTH // 4,
-    SCREEN_HEIGHT // 2,
-    ss(S),
-    5,
-)
-zombie_group.add(zombie)
-zombie1 = Entity(
-    "zombiemale",
-    SCREEN_WIDTH,
-    SCREEN_HEIGHT // 3,
-    ss(S),
-    5,
-)
-zombie_group.add(zombie1)
+# Create empty tile list
+world_data = [[-1 for __ in range(COLS)] for _ in range(ROWS)]
+
+# load level data
+with open(
+    f"ProyectoFinal\\assets\\maps\\levels\\level{level}_data.csv", newline=""
+) as csvfile:
+    reader = csv.reader(csvfile, delimiter=",")
+    for y, row in enumerate(reader):
+        for x, tile in enumerate(row):
+            world_data[y][x] = int(tile)
+
+world = World()
+player = world.process_maindata(world_data)
+world.draw()
 """
 ===============
 MAIN GAME LOOP
@@ -264,29 +366,29 @@ Animation indexes:
 - death:4
 """
 
+
 while gameRunning:
 
     clock.tick(FPS)
 
     drawBG()
+    world.draw()
     draw_text(f"Score: {player.score}", font, (255, 255, 255), SCREEN_WIDTH - 150, 20)
     draw_text("Health: ", font, (255, 255, 255), 15, 20)
     for i in range(player.health // 10):
         screen.blit(pumpkin_img, (120 + (i * pumpkin_img.get_width()), 0))
 
-    for zombie in zombie_group:
-        zombie.move(False, False)
-        zombie.draw()
-        zombie.update()
-        if zombie.isAttacking:
-            zombie.update_action(3)
-        else:
-            zombie.update_action(0)
+    for i in groups:
+        i.update()
+        i.draw(screen)
+
+    for zombie_sprite in zombie_group:
+        zombie_sprite.draw()
+        zombie_sprite.update()
+        zombie_sprite.ai()
 
     player.update()
     player.draw()
-    item_group.update()
-    item_group.draw(screen)
 
     if player.alive:
         if player.isJumping:
