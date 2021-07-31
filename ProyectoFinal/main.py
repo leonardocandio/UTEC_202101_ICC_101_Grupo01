@@ -17,7 +17,7 @@ with open("ProyectoFinal\\assets\\scores.json", "r") as scores_json:
     try:
         scores = json.load(scores_json)
     except json.decoder.JSONDecodeError:
-        pass
+        scores = {}
 
 
 # Init screen
@@ -52,6 +52,8 @@ start_game = False
 start_intro = False
 loop = 0
 leaderboard_open = False
+finish_game = False
+global_score = 0
 
 # Tiles
 img_list = []
@@ -78,6 +80,7 @@ extralife_fx.set_volume(0.5)
 
 # Gui
 start_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\start.png")
+star_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\star.png")
 exit_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\exit.png.")
 restart_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\restart.png.")
 leaderboard_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\leaderboard.png.")
@@ -85,13 +88,18 @@ leaderboard_panel_img = pg.image.load(
     f"ProyectoFinal\\assets\\gui\\leaderboard_panel.png."
 )
 input_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\input.png.")
+save_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\save.png.")
+
+
 # Player variables
 moving_left = False
 moving_right = False
 
 
 font = pg.font.Font("ProyectoFinal\\assets\\maps\\BRLNSDB.TTF", 30)
-user_text = "hello"
+font_title = pg.font.Font("ProyectoFinal\\assets\\maps\\BRLNSDB.TTF", 50)
+font_input = pg.font.Font("ProyectoFinal\\assets\\maps\\BRLNSDB.TTF", 40)
+user_text = ""
 
 
 def draw_text(text, font, color, xpos, ypos):
@@ -448,6 +456,94 @@ class Item(pg.sprite.Sprite):  # Entity class for players and zombies
             self.kill()
 
 
+class Panel:
+    def __init__(self, x, y, image):
+        width = image.get_width()
+        height = image.get_height()
+        self.image = pg.transform.scale(image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.clicked = False
+
+    def draw(self, surface):
+        action = False
+
+        # get mouse position
+        pos = pg.mouse.get_pos()
+        # check mouseover and clicked conditions
+        if (
+            self.rect.collidepoint(pos)
+            and pg.mouse.get_pressed()[0] == 1
+            and self.clicked == False
+        ):
+            action = True
+            self.clicked = True
+
+        if pg.mouse.get_pressed()[0] == 0:
+            self.clicked = False
+
+        # draw button
+        surface.blit(self.image, (self.rect.x, self.rect.y))
+        draw_text(
+            "LEADERBOARD",
+            font_title,
+            (0, 0, 0),
+            SCREEN_WIDTH // 2 - 180,
+            self.rect.top + 40,
+        )
+
+        for row, (holder, score) in enumerate(scores.items()):
+            self.draw_table(holder, score, row)
+        return action
+
+    def draw_table(self, holder, score, row):
+        if row < 8:
+            draw_text(
+                holder,
+                font,
+                (0, 0, 0),
+                self.rect.left + 180,
+                (self.rect.top + 200) + (row * 50),
+            )
+            draw_text(
+                str(score),
+                font,
+                (0, 0, 0),
+                self.rect.left + 380,
+                (self.rect.top + 200) + (row * 50),
+            )
+        elif row < 16:
+            draw_text(
+                holder,
+                font,
+                (0, 0, 0),
+                self.rect.centerx - 150,
+                (self.rect.top + 200) + ((row - 8) * 50),
+            )
+            draw_text(
+                str(score),
+                font,
+                (0, 0, 0),
+                self.rect.centerx + 50,
+                (self.rect.top + 200) + ((row - 8) * 50),
+            )
+        else:
+            draw_text(
+                holder,
+                font,
+                (0, 0, 0),
+                self.rect.right - 450,
+                (self.rect.top + 200) + ((row - 16) * 50),
+            )
+            draw_text(
+                str(score),
+                font,
+                (0, 0, 0),
+                self.rect.right - 250,
+                (self.rect.top + 200) + ((row - 16) * 50),
+            )
+
+
 # Gui buttons
 start_button = button.Button(
     SCREEN_WIDTH // 2,
@@ -464,17 +560,25 @@ leaderboard_button = button.Button(
     SCREEN_HEIGHT // 2,
     leaderboard_img,
 )
-restart_button = button.Button(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, restart_img)
+restart_button = button.Button(
+    SCREEN_WIDTH // 2,
+    SCREEN_HEIGHT // 2,
+    restart_img,
+)
+
+save_button = button.Button(SCREEN_WIDTH - 150, SCREEN_HEIGHT - 270, save_img, 0.85)
+
+leaderboard_panel = Panel(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, leaderboard_panel_img)
 
 
 class Transition:
-    def __init__(self, direction, color, speed):
+    def __init__(self, direction, color, speed, img=star_img):
         self.direction = direction
         self.color = color
         self.speed = speed
         self.fade_counter = 0
 
-    def fade(self):
+    def fade(self, img=star_img):
         fade_complete = False
         self.fade_counter += self.speed
         if self.direction == 1:
@@ -503,34 +607,30 @@ class Transition:
                     SCREEN_HEIGHT,
                 ),
             )
-        if self.direction == 2:
+        elif self.direction == 2:
             pg.draw.rect(
                 screen, self.color, (0, 0, SCREEN_WIDTH, 0 + self.fade_counter)
+            )
+        else:
+            pg.draw.rect(
+                screen,
+                (255, 255, 0),
+                (
+                    0,
+                    SCREEN_HEIGHT - self.fade_counter,
+                    SCREEN_WIDTH,
+                    SCREEN_HEIGHT + self.fade_counter,
+                ),
             )
         if self.fade_counter >= SCREEN_WIDTH:
             fade_complete = True
         return fade_complete
 
 
-class Input:
-    def __init__(self, text, xpos, ypos, image, scale):
-        width = image.get_width()
-        height = image.get_height()
-        self.text = text
-        self.image = pg.transform.scale(
-            image, (int(width * scale), int(height * scale))
-        )
-        self.rect = self.image.get_rect()
-        self.rect.center = (x, y)
-
-    def draw(surface):
-        action = False
-        draw_text(text, font, (255, 255, 255), xpos, ypos)
-
-
 # Screen transition
 death_transition = Transition(2, (26, 37, 39), 10)
 level_transition = Transition(1, (0, 0, 0), 10)
+endgame_transition = Transition(3, (255, 255, 0), 15)
 
 # Sprite groups
 zombie_group = pg.sprite.Group()
@@ -556,7 +656,6 @@ with open(
 
 world = World()
 player = world.process_maindata(world_data)
-textinput = Input(user_text, 100, 100, input_img, 1)
 """
 ===============
 MAIN GAME LOOP
@@ -569,6 +668,37 @@ Animation indexes:
 - attack:3
 - death:4
 """
+
+
+def draw_endscreen():
+    screen.blit(
+        input_img,
+        (
+            SCREEN_WIDTH // 2 - input_img.get_width() // 2,
+            SCREEN_HEIGHT // 2 - input_img.get_height() // 2,
+        ),
+    )
+    draw_text(
+        user_text,
+        font_input,
+        (255, 255, 255),
+        SCREEN_WIDTH // 2 - 300,
+        SCREEN_HEIGHT // 2 + 65,
+    )
+    draw_text(
+        "Enter your name",
+        font_input,
+        (0, 0, 0),
+        SCREEN_WIDTH // 2 - 160,
+        SCREEN_HEIGHT // 2 - 140,
+    )
+    draw_text(
+        f"Final Score: {global_score}",
+        font_input,
+        (0, 0, 0),
+        SCREEN_WIDTH // 2 - 180,
+        SCREEN_HEIGHT - 100,
+    )
 
 
 while gameRunning:
@@ -585,8 +715,8 @@ while gameRunning:
         elif leaderboard_button.draw(screen):
             leaderboard_open = True
 
-    if leaderboard_open:
-        pass
+    if leaderboard_open and leaderboard_panel.draw(screen):
+        leaderboard_open = False
     if start_game:
         drawBG()
         world.draw()
@@ -614,7 +744,7 @@ while gameRunning:
             start_intro = False
             level_transition.fade_counter = 0
 
-        if player.alive:
+        if player.alive and not finish_game:
             if player.isJumping:
                 player.update_action(2)  # update animation to jumping (index 2)
             elif moving_left or moving_right:
@@ -625,6 +755,7 @@ while gameRunning:
             bg_scroll -= screen_scroll
             # Check if level complete
             if level_complete:
+                global_score += player.score
                 start_intro = True
                 level += 1
                 bg_scroll = 0
@@ -641,17 +772,20 @@ while gameRunning:
                                 world_data[x][y] = int(tile)
                     world = World()
                     player = world.process_maindata(world_data)
+                else:
+                    finish_game = True
+        elif finish_game:
+            if endgame_transition.fade():
+                draw_endscreen()
+                if save_button.draw(screen):
+                    gameRunning = False
         else:
 
             if loop < 1:
                 death_fx.play()
                 loop += 1
             screen_scroll = 0
-            if (
-                death_transition.fade()
-                and restart_button.draw(screen)
-                and textinput.draw(screen)
-            ):
+            if death_transition.fade() and restart_button.draw(screen):
                 loop = 0
                 death_transition.fade_counter = 0
                 bg_scroll = 0
@@ -672,7 +806,7 @@ while gameRunning:
         if event.type == pg.QUIT:  # Close game
             gameRunning = False
 
-        if event.type == pg.KEYDOWN and not start_game:
+        if event.type == pg.KEYDOWN and finish_game:
             if event.key == pg.K_BACKSPACE:
                 user_text = user_text[:-1]
             else:
@@ -695,4 +829,10 @@ while gameRunning:
                 moving_right = False
 
     pg.display.update()
+if user_text:
+    scores[user_text] = global_score
+
+scores_sorted = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
+with open("ProyectoFinal\\assets\\scores.json", "w") as scores_json:
+    json.dump(scores_sorted, scores_json)
 pg.quit()
