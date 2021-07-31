@@ -42,7 +42,10 @@ S = 0.23
 ROWS = 9
 COLS = 126
 TILE_SIZE = SCREEN_HEIGHT // ROWS
+SCROLL_THRESH = 4 * TILE_SIZE
 TILE_TYPES = len(os.listdir("ProyectoFinal\\assets\\maps\\tiles"))
+screen_scroll = 0
+bg_scroll = 0
 level = 0
 
 img_list = []
@@ -133,6 +136,9 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
             self.attack_cooldown -= 1
 
     def move(self, moving_left, moving_right):
+
+        screen_scroll = 0
+
         # Reset variables
         dxpos = 0
         dypos = 0
@@ -161,6 +167,9 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
                 self.rect.x + dxpos, self.rect.y, self.width, self.height
             ):
                 dxpos = 0
+                if "zombie" in self.char_type:
+                    self.direction *= -1
+                    self.move_counter = 0
             if tile[1].colliderect(
                 self.rect.x, self.rect.y + dypos, self.width, self.height
             ):
@@ -168,11 +177,32 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
                     dypos = tile[1].bottom - self.rect.top
                 else:
                     dypos = tile[1].top - self.rect.bottom
+                    self.isJumping = False
                 self.speed_ypos = 0
-                self.isJumping = False
+
+        # check if going off edges
+        if self.char_type == "player" and (
+            self.rect.left + dxpos < 0 or self.rect.right + dxpos > SCREEN_WIDTH
+        ):
+            dxpos = 0
+
         # Change movement speed
         self.rect.x += dxpos
         self.rect.y += dypos
+
+        # update scroll based on player position
+        if (
+            self.char_type == "player"
+            and (
+                self.rect.right > SCREEN_WIDTH - SCROLL_THRESH
+                and bg_scroll < (world.level_length * TILE_SIZE) - SCREEN_WIDTH
+            )
+            or (self.rect.left < SCROLL_THRESH and bg_scroll > abs(dxpos))
+        ):
+            self.rect.x -= dxpos
+            screen_scroll = -dxpos
+
+        return screen_scroll
 
     def update_animation(self):
         cooldown = 80
@@ -228,6 +258,7 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
             self.idling_counter -= 1
             if self.idling_counter <= 0:
                 self.idling = False
+        self.rect.x += screen_scroll
 
     def idle(self, arg0, arg1):
         self.update_action(arg0)
@@ -250,6 +281,7 @@ class World:
         self.obstacle_list = []
 
     def process_maindata(self, data):
+        self.level_length = len(data[0])
         d = {25: "candy", 26: "cupcake", 27: "pumpkin", 28: "player", 29: "zombiemale"}
         # iterate trough tile values in data file
         for y, row in enumerate(data):
@@ -288,7 +320,8 @@ class World:
 
     def draw(self):
         for tile in self.obstacle_list:
-            screen.blit(tile[0], tile[1])
+            tile[1][0] += screen_scroll
+            screen.blit(*tile)
 
 
 class Decoration(pg.sprite.Sprite):
@@ -301,6 +334,9 @@ class Decoration(pg.sprite.Sprite):
             y + (TILE_SIZE - self.image.get_height()),
         )
 
+    def update(self):
+        self.rect.x += screen_scroll
+
 
 class CollisionTile(pg.sprite.Sprite):
     def __init__(self, img, x, y, tile_type):
@@ -311,6 +347,9 @@ class CollisionTile(pg.sprite.Sprite):
             x + TILE_SIZE // 2,
             y + (TILE_SIZE - self.image.get_height()),
         )
+
+    def update(self):
+        self.rect.x += screen_scroll
 
 
 class Item(pg.sprite.Sprite):  # Entity class for players and zombies
@@ -327,6 +366,8 @@ class Item(pg.sprite.Sprite):  # Entity class for players and zombies
         )
 
     def update(self):
+        self.rect.x += screen_scroll
+
         # check if pick up
         if pg.sprite.collide_rect(self, player):
             # check type of box
@@ -408,7 +449,8 @@ while gameRunning:
             player.update_action(1)  # update animation to walking (index 1)
         else:
             player.update_action(0)
-        player.move(moving_left, moving_right)
+        screen_scroll = player.move(moving_left, moving_right)
+        bg_scroll -= screen_scroll
 
     for event in pg.event.get():  # Event handler
         if event.type == pg.QUIT:  # Close game
