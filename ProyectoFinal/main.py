@@ -3,9 +3,9 @@ import os
 import random
 import csv
 import json
-import button
-from pygame import mixer
+import assets.button as button
 
+pg.mixer.init()
 pg.init()
 
 GAMETITLE = "Graveyard Adventures"
@@ -44,23 +44,54 @@ COLS = 126
 TILE_SIZE = SCREEN_HEIGHT // ROWS
 SCROLL_THRESH = 4 * TILE_SIZE
 TILE_TYPES = len(os.listdir("ProyectoFinal\\assets\\maps\\tiles"))
+MAX_LEVELS = 5
 screen_scroll = 0
 bg_scroll = 0
-level = 0
+level = 1
+start_game = False
+start_intro = False
+loop = 0
+leaderboard_open = False
 
+# Tiles
 img_list = []
 for x in range(TILE_TYPES):
     img = pg.image.load(f"ProyectoFinal\\assets\\maps\\tiles\\tile{x}.png")
-    img = pg.transform.scale(img, (TILE_SIZE, TILE_SIZE))
+    if x in range(16) or x in [20, 21, 30]:
+        img = pg.transform.scale(img, (TILE_SIZE, TILE_SIZE))
     img_list.append(img)
 
+# load music
+# bg music
+pg.mixer.music.load("ProyectoFinal\\assets\\audio\\game.mp3")
+pg.mixer.music.set_volume(0.1)
+pg.mixer.music.play(-1, 0.0, 3000)
 
+jump_fx = pg.mixer.Sound("ProyectoFinal\\assets\\audio\\jump.wav")
+death_fx = pg.mixer.Sound("ProyectoFinal\\assets\\audio\\death.flac")
+item_fx = pg.mixer.Sound("ProyectoFinal\\assets\\audio\\item.mp3")
+extralife_fx = pg.mixer.Sound("ProyectoFinal\\assets\\audio\\extralife.wav")
+jump_fx.set_volume(0.05)
+death_fx.set_volume(0.05)
+item_fx.set_volume(3)
+extralife_fx.set_volume(0.5)
+
+# Gui
+start_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\start.png")
+exit_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\exit.png.")
+restart_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\restart.png.")
+leaderboard_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\leaderboard.png.")
+leaderboard_panel_img = pg.image.load(
+    f"ProyectoFinal\\assets\\gui\\leaderboard_panel.png."
+)
+input_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\input.png.")
 # Player variables
 moving_left = False
 moving_right = False
 
 
 font = pg.font.Font("ProyectoFinal\\assets\\maps\\BRLNSDB.TTF", 30)
+user_text = "hello"
 
 
 def draw_text(text, font, color, xpos, ypos):
@@ -70,6 +101,14 @@ def draw_text(text, font, color, xpos, ypos):
 
 def drawBG():
     screen.blit(BACKGROUND, (0, 0))
+
+
+def reset_level():
+    zombie_group.empty()
+    for group in groups:
+        group.empty()
+
+    return [[-1 for _ in range(COLS)] for __ in range(ROWS)]
 
 
 def ss(scale, c="z"):
@@ -153,6 +192,7 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
             self.flip = False
             self.direction = 1
         if self.jump and not self.isJumping:  # jump
+            jump_fx.play()
             self.speed_ypos = -12
             self.jump = False
             self.isJumping = True
@@ -180,6 +220,16 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
                     self.isJumping = False
                 self.speed_ypos = 0
 
+        if pg.sprite.spritecollide(self, spikes_group, False):
+            self.health = 0
+
+        level_complete = False
+        if pg.sprite.spritecollide(self, exit_tile_group, False):
+            level_complete = True
+
+        if self.rect.top > SCREEN_HEIGHT:
+            self.health = 0
+
         # check if going off edges
         if self.char_type == "player" and (
             self.rect.left + dxpos < 0 or self.rect.right + dxpos > SCREEN_WIDTH
@@ -202,7 +252,7 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
             self.rect.x -= dxpos
             screen_scroll = -dxpos
 
-        return screen_scroll
+        return screen_scroll, level_complete
 
     def update_animation(self):
         cooldown = 80
@@ -231,7 +281,6 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
 
     def draw(self):
         screen.blit(pg.transform.flip(self.image, self.flip, False), self.rect)
-        pg.draw.rect(screen, (255, 255, 255), self.rect, 1)
 
     def check_attack(self):
         if (
@@ -294,11 +343,9 @@ class World:
                     tile_data = (img, img_rect)
                     if tile <= 15:  # blocks
                         self.obstacle_list.append(tile_data)
-                    elif tile in [16, 30]:
-                        collision_tile = CollisionTile(
-                            img, x * TILE_SIZE, y * TILE_SIZE, "exit"
-                        )
-                        collision_tile_group.add(collision_tile)
+                    elif tile == 16:
+                        spikes = Spikes(img, x * TILE_SIZE, y * TILE_SIZE)
+                        spikes_group.add(spikes)
                     elif tile in range(17, 25):  # decoration
                         decoration = Decoration(img, x * TILE_SIZE, y * TILE_SIZE)
                         decoration_group.add(decoration)
@@ -315,7 +362,9 @@ class World:
                                 d[tile], x * TILE_SIZE, y * TILE_SIZE, ss(S), 3
                             )
                             zombie_group.add(zombie)
-
+                    else:
+                        exit_tile = Exit_tile(img, x * TILE_SIZE, y * TILE_SIZE)
+                        exit_tile_group.add(exit_tile)
         return player
 
     def draw(self):
@@ -338,8 +387,22 @@ class Decoration(pg.sprite.Sprite):
         self.rect.x += screen_scroll
 
 
-class CollisionTile(pg.sprite.Sprite):
-    def __init__(self, img, x, y, tile_type):
+class Spikes(pg.sprite.Sprite):
+    def __init__(self, img, x, y):
+        pg.sprite.Sprite.__init__(self)
+        self.image = img
+        self.rect = self.image.get_rect()
+        self.rect.midtop = (
+            x + TILE_SIZE // 2,
+            y + (TILE_SIZE - self.image.get_height()),
+        )
+
+    def update(self):
+        self.rect.x += screen_scroll
+
+
+class Exit_tile(pg.sprite.Sprite):
+    def __init__(self, img, x, y):
         pg.sprite.Sprite.__init__(self)
         self.image = img
         self.rect = self.image.get_rect()
@@ -373,21 +436,110 @@ class Item(pg.sprite.Sprite):  # Entity class for players and zombies
             # check type of box
             if self.item_type == "pumpkin":
                 player.health += 10
+                extralife_fx.play()
             elif self.item_type == "cupcake":
                 player.score += 25
+                item_fx.play()
             else:
                 player.score += 5
+                item_fx.play()
 
             # kill item
             self.kill()
 
 
+# Gui buttons
+start_button = button.Button(
+    SCREEN_WIDTH // 2,
+    SCREEN_HEIGHT // 2,
+    start_img,
+)
+exit_button = button.Button(
+    SCREEN_WIDTH // 2 - start_img.get_width() - 50,
+    SCREEN_HEIGHT // 2,
+    exit_img,
+)
+leaderboard_button = button.Button(
+    SCREEN_WIDTH // 2 + start_img.get_width() + 50,
+    SCREEN_HEIGHT // 2,
+    leaderboard_img,
+)
+restart_button = button.Button(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, restart_img)
+
+
+class Transition:
+    def __init__(self, direction, color, speed):
+        self.direction = direction
+        self.color = color
+        self.speed = speed
+        self.fade_counter = 0
+
+    def fade(self):
+        fade_complete = False
+        self.fade_counter += self.speed
+        if self.direction == 1:
+            pg.draw.rect(
+                screen,
+                self.color,
+                (0 - self.fade_counter, 0, SCREEN_WIDTH // 2, SCREEN_HEIGHT),
+            )
+            pg.draw.rect(
+                screen,
+                self.color,
+                (SCREEN_WIDTH // 2 + self.fade_counter, 0, SCREEN_WIDTH, SCREEN_HEIGHT),
+            )
+            pg.draw.rect(
+                screen,
+                self.color,
+                (0, 0 - self.fade_counter, SCREEN_WIDTH, SCREEN_HEIGHT // 2),
+            )
+            pg.draw.rect(
+                screen,
+                self.color,
+                (
+                    0,
+                    SCREEN_HEIGHT // 2 + self.fade_counter,
+                    SCREEN_WIDTH,
+                    SCREEN_HEIGHT,
+                ),
+            )
+        if self.direction == 2:
+            pg.draw.rect(
+                screen, self.color, (0, 0, SCREEN_WIDTH, 0 + self.fade_counter)
+            )
+        if self.fade_counter >= SCREEN_WIDTH:
+            fade_complete = True
+        return fade_complete
+
+
+class Input:
+    def __init__(self, text, xpos, ypos, image, scale):
+        width = image.get_width()
+        height = image.get_height()
+        self.text = text
+        self.image = pg.transform.scale(
+            image, (int(width * scale), int(height * scale))
+        )
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+
+    def draw(surface):
+        action = False
+        draw_text(text, font, (255, 255, 255), xpos, ypos)
+
+
+# Screen transition
+death_transition = Transition(2, (26, 37, 39), 10)
+level_transition = Transition(1, (0, 0, 0), 10)
+
+# Sprite groups
 zombie_group = pg.sprite.Group()
 item_group = pg.sprite.Group()
 decoration_group = pg.sprite.Group()
-collision_tile_group = pg.sprite.Group()
+spikes_group = pg.sprite.Group()
+exit_tile_group = pg.sprite.Group()
 
-groups = [item_group, decoration_group, collision_tile_group]
+groups = [decoration_group, item_group, exit_tile_group, spikes_group]
 
 
 # Create empty tile list
@@ -404,7 +556,7 @@ with open(
 
 world = World()
 player = world.process_maindata(world_data)
-world.draw()
+textinput = Input(user_text, 100, 100, input_img, 1)
 """
 ===============
 MAIN GAME LOOP
@@ -421,40 +573,110 @@ Animation indexes:
 
 while gameRunning:
 
-    clock.tick(FPS)
+    time_delta = clock.tick(FPS) / 1000.0
 
-    drawBG()
-    world.draw()
-    draw_text(f"Score: {player.score}", font, (255, 255, 255), SCREEN_WIDTH - 150, 20)
-    draw_text("Health: ", font, (255, 255, 255), 15, 20)
-    for i in range(player.health // 10):
-        screen.blit(pumpkin_img, (120 + (i * pumpkin_img.get_width()), 0))
+    if not start_game:
+        screen.blit(BACKGROUND, (0, 0))
+        if start_button.draw(screen):
+            start_game = True
+            start_intro = True
+        elif exit_button.draw(screen):
+            gameRunning = False
+        elif leaderboard_button.draw(screen):
+            leaderboard_open = True
 
-    for i in groups:
-        i.update()
-        i.draw(screen)
+    if leaderboard_open:
+        pass
+    if start_game:
+        drawBG()
+        world.draw()
+        draw_text(
+            f"Score: {player.score}", font, (255, 255, 255), SCREEN_WIDTH - 150, 20
+        )
+        draw_text("Health: ", font, (255, 255, 255), 15, 20)
+        for i in range(player.health // 10):
+            screen.blit(pumpkin_img, (120 + (i * pumpkin_img.get_width()), 0))
 
-    for zombie_sprite in zombie_group:
-        zombie_sprite.draw()
-        zombie_sprite.update()
-        zombie_sprite.ai()
+        for group in groups:
+            group.update()
+            group.draw(screen)
 
-    player.update()
-    player.draw()
+        for zombie_sprite in zombie_group:
+            zombie_sprite.draw()
+            zombie_sprite.update()
+            zombie_sprite.ai()
 
-    if player.alive:
-        if player.isJumping:
-            player.update_action(2)  # update animation to jumping (index 2)
-        elif moving_left or moving_right:
-            player.update_action(1)  # update animation to walking (index 1)
+        player.update()
+        player.draw()
+
+        # play intro
+        if start_intro and level_transition.fade():
+            start_intro = False
+            level_transition.fade_counter = 0
+
+        if player.alive:
+            if player.isJumping:
+                player.update_action(2)  # update animation to jumping (index 2)
+            elif moving_left or moving_right:
+                player.update_action(1)  # update animation to walking (index 1)
+            else:
+                player.update_action(0)
+            screen_scroll, level_complete = player.move(moving_left, moving_right)
+            bg_scroll -= screen_scroll
+            # Check if level complete
+            if level_complete:
+                start_intro = True
+                level += 1
+                bg_scroll = 0
+                world_data = reset_level()
+                if level <= MAX_LEVELS:
+                    # load in level data and create world
+                    with open(
+                        f"ProyectoFinal\\assets\\maps\\levels\\level{level}_data.csv",
+                        newline="",
+                    ) as csvfile:
+                        reader = csv.reader(csvfile, delimiter=",")
+                        for x, row in enumerate(reader):
+                            for y, tile in enumerate(row):
+                                world_data[x][y] = int(tile)
+                    world = World()
+                    player = world.process_maindata(world_data)
         else:
-            player.update_action(0)
-        screen_scroll = player.move(moving_left, moving_right)
-        bg_scroll -= screen_scroll
+
+            if loop < 1:
+                death_fx.play()
+                loop += 1
+            screen_scroll = 0
+            if (
+                death_transition.fade()
+                and restart_button.draw(screen)
+                and textinput.draw(screen)
+            ):
+                loop = 0
+                death_transition.fade_counter = 0
+                bg_scroll = 0
+                world_data = reset_level()
+                # load in level data and create world
+                with open(
+                    f"ProyectoFinal\\assets\\maps\\levels\\level{level}_data.csv",
+                    newline="",
+                ) as csvfile:
+                    reader = csv.reader(csvfile, delimiter=",")
+                    for x, row in enumerate(reader):
+                        for y, tile in enumerate(row):
+                            world_data[x][y] = int(tile)
+                world = World()
+                player = world.process_maindata(world_data)
 
     for event in pg.event.get():  # Event handler
         if event.type == pg.QUIT:  # Close game
             gameRunning = False
+
+        if event.type == pg.KEYDOWN and not start_game:
+            if event.key == pg.K_BACKSPACE:
+                user_text = user_text[:-1]
+            else:
+                user_text += event.unicode
 
         if event.type == pg.KEYDOWN and player.alive:
             if event.key == pg.K_a:
