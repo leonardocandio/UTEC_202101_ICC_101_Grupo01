@@ -126,6 +126,7 @@ def ss(scale, c="z"):
 class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
     def __init__(self, char_type, xpos, ypos, scale, speed_xpos):
         pg.sprite.Sprite.__init__(self)
+        self.action = 0
         self.alive = True
         self.char_type = char_type
         self.speed_xpos = speed_xpos
