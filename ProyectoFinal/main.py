@@ -1,19 +1,33 @@
+"""
+Integrantes:
+- Leonardo Candio
+- Renzo Acervo
+- Diego Diaz
+- Alejandro Barturen
+- Nicolas Arce
+
+LINK VIDEO: https://drive.google.com/file/d/15z9m-ZPqr6t9TvO4jMjdmx9K3rCVQFCk/view?usp=sharing
+"""
+
 import pygame as pg
 import os
 import random
 import csv
 import json
 import assets.button as button
+from pathlib import Path
+
 
 pg.mixer.init()
 pg.init()
 
 GAMETITLE = "Graveyard Adventures"
 gameRunning = True
+current_dir = os.path.dirname(__file__)
 
 
 # Loading score data from JSON file
-with open("ProyectoFinal\\assets\\scores.json", "r") as scores_json:
+with open((Path(f"{current_dir}/assets/scores.json")), "r") as scores_json:
     try:
         scores = json.load(scores_json)
     except json.decoder.JSONDecodeError:
@@ -31,9 +45,10 @@ clock = pg.time.Clock()
 FPS = 60
 
 # Game variables
-BACKGROUND = pg.image.load("ProyectoFinal\\assets\\maps\\bg.png").convert_alpha()
+BACKGROUND = pg.image.load(
+    Path(f"{current_dir}/assets/maps/bg.png")).convert_alpha()
 pumpkin_img = pg.image.load(
-    f"ProyectoFinal\\assets\\maps\\items\\pumpkin.png"
+    f"{current_dir}/assets/maps/items/pumpkin.png"
 ).convert_alpha()
 
 
@@ -42,8 +57,8 @@ S = 0.23
 ROWS = 9
 COLS = 126
 TILE_SIZE = SCREEN_HEIGHT // ROWS
-SCROLL_THRESH = 4 * TILE_SIZE
-TILE_TYPES = len(os.listdir("ProyectoFinal\\assets\\maps\\tiles"))
+SCROLL_THRESH = 6 * TILE_SIZE
+TILE_TYPES = len(os.listdir(f"{current_dir}/assets/maps/tiles"))
 MAX_LEVELS = 5
 screen_scroll = 0
 bg_scroll = 0
@@ -58,37 +73,38 @@ global_score = 0
 # Tiles
 img_list = []
 for x in range(TILE_TYPES):
-    img = pg.image.load(f"ProyectoFinal\\assets\\maps\\tiles\\tile{x}.png")
-    if x in range(16) or x in [20, 21, 30]:
+    img = pg.image.load(f"{current_dir}/assets/maps/tiles/tile{x}.png")
+    if x in range(17) or x in [20, 21, 28, 30]:
         img = pg.transform.scale(img, (TILE_SIZE, TILE_SIZE))
     img_list.append(img)
 
 # load music
 # bg music
-pg.mixer.music.load("ProyectoFinal\\assets\\audio\\game.mp3")
+pg.mixer.music.load(f"{current_dir}/assets/audio/game.mp3")
 pg.mixer.music.set_volume(0.1)
 pg.mixer.music.play(-1, 0.0, 3000)
 
-jump_fx = pg.mixer.Sound("ProyectoFinal\\assets\\audio\\jump.wav")
-death_fx = pg.mixer.Sound("ProyectoFinal\\assets\\audio\\death.flac")
-item_fx = pg.mixer.Sound("ProyectoFinal\\assets\\audio\\item.mp3")
-extralife_fx = pg.mixer.Sound("ProyectoFinal\\assets\\audio\\extralife.wav")
+jump_fx = pg.mixer.Sound(f"{current_dir}/assets/audio/jump.wav")
+death_fx = pg.mixer.Sound(f"{current_dir}/assets/audio/death.flac")
+item_fx = pg.mixer.Sound(f"{current_dir}/assets/audio/item.mp3")
+extralife_fx = pg.mixer.Sound(f"{current_dir}/assets/audio/extralife.wav")
 jump_fx.set_volume(0.05)
 death_fx.set_volume(0.05)
 item_fx.set_volume(3)
 extralife_fx.set_volume(0.5)
 
 # Gui
-start_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\start.png")
-star_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\star.png")
-exit_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\exit.png.")
-restart_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\restart.png.")
-leaderboard_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\leaderboard.png.")
+start_img = pg.image.load(f"{current_dir}/assets/gui/start.png")
+star_img = pg.image.load(f"{current_dir}/assets/gui/star.png")
+exit_img = pg.image.load(f"{current_dir}/assets/gui/exit.png.")
+restart_img = pg.image.load(f"{current_dir}/assets/gui/restart.png.")
+leaderboard_img = pg.image.load(
+    f"{current_dir}/assets/gui/leaderboard.png.")
 leaderboard_panel_img = pg.image.load(
-    f"ProyectoFinal\\assets\\gui\\leaderboard_panel.png."
+    f"{current_dir}/assets/gui/leaderboard_panel.png."
 )
-input_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\input.png.")
-save_img = pg.image.load(f"ProyectoFinal\\assets\\gui\\save.png.")
+input_img = pg.image.load(f"{current_dir}/assets/gui/input.png.")
+save_img = pg.image.load(f"{current_dir}/assets/gui/save.png.")
 
 
 # Player variables
@@ -96,9 +112,9 @@ moving_left = False
 moving_right = False
 
 
-font = pg.font.Font("ProyectoFinal\\assets\\maps\\BRLNSDB.TTF", 30)
-font_title = pg.font.Font("ProyectoFinal\\assets\\maps\\BRLNSDB.TTF", 50)
-font_input = pg.font.Font("ProyectoFinal\\assets\\maps\\BRLNSDB.TTF", 40)
+font = pg.font.Font(f"{current_dir}/assets/maps/BRLNSDB.TTF", 30)
+font_title = pg.font.Font(f"{current_dir}/assets/maps/BRLNSDB.TTF", 50)
+font_input = pg.font.Font(f"{current_dir}/assets/maps/BRLNSDB.TTF", 40)
 user_text = ""
 
 
@@ -159,15 +175,17 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
         for animation in animation_types:
             temp_list = []
             num_of_frames = len(
-                os.listdir(f"ProyectoFinal\\assets\\{self.char_type}\\{animation}")
+                os.listdir(
+                    f"{current_dir}/assets/{self.char_type}/{animation}")
             )
             for i in range(num_of_frames):
                 image = pg.image.load(
-                    f"ProyectoFinal\\assets\\{self.char_type}\\{animation}\\{animation}{i}.png"
+                    f"{current_dir}/assets/{self.char_type}/{animation}/{animation}{i}.png"
                 ).convert_alpha()
                 image = pg.transform.scale(
                     image,
-                    (int(scale * image.get_width()), int(scale * image.get_height())),
+                    (int(scale * image.get_width()),
+                     int(scale * image.get_height())),
                 )
                 temp_list.append(image)
             self.animation_list.append(temp_list)
@@ -183,7 +201,7 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
         if self.attack_cooldown > 0:
             self.attack_cooldown -= 1
 
-    def move(self, moving_left, moving_right):
+    def move(self, moving_left, moving_right):  # sourcery no-metrics
 
         screen_scroll = 0
 
@@ -212,16 +230,12 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
         dypos += self.speed_ypos
 
         for tile in world.obstacle_list:
-            if tile[1].colliderect(
-                self.rect.x + dxpos, self.rect.y, self.width, self.height
-            ):
+            if tile[1].colliderect(self.rect.x + dxpos, self.rect.y, self.width, self.height):
                 dxpos = 0
                 if "zombie" in self.char_type:
                     self.direction *= -1
                     self.move_counter = 0
-            if tile[1].colliderect(
-                self.rect.x, self.rect.y + dypos, self.width, self.height
-            ):
+            if tile[1].colliderect(self.rect.x, self.rect.y + dypos, self.width, self.height):
                 if self.speed_ypos < 0:
                     dypos = tile[1].bottom - self.rect.top
                 else:
@@ -229,7 +243,7 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
                     self.isJumping = False
                 self.speed_ypos = 0
 
-        if pg.sprite.spritecollide(self, spikes_group, False):
+        if pg.sprite.spritecollide(self, spikes_group, False) and self.char_type == 'player':
             self.health = 0
 
         level_complete = False
@@ -307,7 +321,7 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
 
     def ai(self):
         if not self.idling:
-            self.extracted_from_ai()
+            self.move_ai()
             if random.randint(1, 300) == 1:
                 self.idle(0, 50)
         if self.isAttacking:
@@ -323,7 +337,7 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
         self.idling = True
         self.idling_counter = arg1
 
-    def extracted_from_ai(self):
+    def move_ai(self):
         ai_moving_right = self.direction == 1
         ai_moving_left = not ai_moving_right
         self.move(ai_moving_left, ai_moving_right)
@@ -334,13 +348,14 @@ class Entity(pg.sprite.Sprite):  # Entity class for players and zombies
             self.move_counter *= -1
 
 
-class World:
+class World:  # World class for world creation
     def __init__(self):
         self.obstacle_list = []
 
     def process_maindata(self, data):
         self.level_length = len(data[0])
-        d = {25: "candy", 26: "cupcake", 27: "pumpkin", 28: "player", 29: "zombiemale"}
+        d = {25: "candy", 26: "cupcake", 27: "pumpkin",
+             28: "player", 29: "zombiemale"}
         # iterate trough tile values in data file
         for y, row in enumerate(data):
             for x, tile in enumerate(row):
@@ -350,13 +365,14 @@ class World:
                     img_rect.x = x * TILE_SIZE
                     img_rect.y = y * TILE_SIZE
                     tile_data = (img, img_rect)
-                    if tile <= 15:  # blocks
+                    if tile <= 15 or tile == 20:  # blocks
                         self.obstacle_list.append(tile_data)
                     elif tile == 16:
                         spikes = Spikes(img, x * TILE_SIZE, y * TILE_SIZE)
                         spikes_group.add(spikes)
                     elif tile in range(17, 25):  # decoration
-                        decoration = Decoration(img, x * TILE_SIZE, y * TILE_SIZE)
+                        decoration = Decoration(
+                            img, x * TILE_SIZE, y * TILE_SIZE)
                         decoration_group.add(decoration)
                     elif tile in range(25, 28):  # items
                         item = Item(d[tile], x * TILE_SIZE, y * TILE_SIZE)
@@ -364,7 +380,8 @@ class World:
                     elif tile in [28, 29]:
                         if tile == 28:
                             player = Entity(
-                                d[tile], x * TILE_SIZE, y * TILE_SIZE, ss(S, "p"), 5
+                                d[tile], x * TILE_SIZE, y *
+                                TILE_SIZE, ss(S, "p"), 5
                             )
                         else:
                             zombie = Entity(
@@ -372,7 +389,8 @@ class World:
                             )
                             zombie_group.add(zombie)
                     else:
-                        exit_tile = Exit_tile(img, x * TILE_SIZE, y * TILE_SIZE)
+                        exit_tile = Exit_tile(
+                            img, x * TILE_SIZE, y * TILE_SIZE)
                         exit_tile_group.add(exit_tile)
         return player
 
@@ -382,7 +400,7 @@ class World:
             screen.blit(*tile)
 
 
-class Decoration(pg.sprite.Sprite):
+class Decoration(pg.sprite.Sprite):  # Decoration class for level decoration
     def __init__(self, img, x, y):
         pg.sprite.Sprite.__init__(self)
         self.image = img
@@ -396,7 +414,7 @@ class Decoration(pg.sprite.Sprite):
         self.rect.x += screen_scroll
 
 
-class Spikes(pg.sprite.Sprite):
+class Spikes(pg.sprite.Sprite):  # Spikes class for insta-kill tile
     def __init__(self, img, x, y):
         pg.sprite.Sprite.__init__(self)
         self.image = img
@@ -410,7 +428,7 @@ class Spikes(pg.sprite.Sprite):
         self.rect.x += screen_scroll
 
 
-class Exit_tile(pg.sprite.Sprite):
+class Exit_tile(pg.sprite.Sprite):  # Exit tile class for next level sign
     def __init__(self, img, x, y):
         pg.sprite.Sprite.__init__(self)
         self.image = img
@@ -424,12 +442,12 @@ class Exit_tile(pg.sprite.Sprite):
         self.rect.x += screen_scroll
 
 
-class Item(pg.sprite.Sprite):  # Entity class for players and zombies
+class Item(pg.sprite.Sprite):  # Item class for collectible items
     def __init__(self, item_type, xpos, ypos):
         pg.sprite.Sprite.__init__(self)
         self.item_type = item_type
         self.image = pg.image.load(
-            f"ProyectoFinal\\assets\\maps\\items\\{self.item_type}.png"
+            f"{current_dir}/assets/maps/items/{self.item_type}.png"
         )
         self.rect = self.image.get_rect()
         self.rect.midtop = (
@@ -457,7 +475,7 @@ class Item(pg.sprite.Sprite):  # Entity class for players and zombies
             self.kill()
 
 
-class Panel:
+class Panel:  # Panel class for leaderboard
     def __init__(self, x, y, image):
         width = image.get_width()
         height = image.get_height()
@@ -545,34 +563,7 @@ class Panel:
             )
 
 
-# Gui buttons
-start_button = button.Button(
-    SCREEN_WIDTH // 2,
-    SCREEN_HEIGHT // 2,
-    start_img,
-)
-exit_button = button.Button(
-    SCREEN_WIDTH // 2 - start_img.get_width() - 50,
-    SCREEN_HEIGHT // 2,
-    exit_img,
-)
-leaderboard_button = button.Button(
-    SCREEN_WIDTH // 2 + start_img.get_width() + 50,
-    SCREEN_HEIGHT // 2,
-    leaderboard_img,
-)
-restart_button = button.Button(
-    SCREEN_WIDTH // 2,
-    SCREEN_HEIGHT // 2,
-    restart_img,
-)
-
-save_button = button.Button(SCREEN_WIDTH - 150, SCREEN_HEIGHT - 270, save_img, 0.85)
-
-leaderboard_panel = Panel(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, leaderboard_panel_img)
-
-
-class Transition:
+class Transition:  # Transition class for transition screens
     def __init__(self, direction, color, speed, img=star_img):
         self.direction = direction
         self.color = color
@@ -591,7 +582,8 @@ class Transition:
             pg.draw.rect(
                 screen,
                 self.color,
-                (SCREEN_WIDTH // 2 + self.fade_counter, 0, SCREEN_WIDTH, SCREEN_HEIGHT),
+                (SCREEN_WIDTH // 2 + self.fade_counter,
+                 0, SCREEN_WIDTH, SCREEN_HEIGHT),
             )
             pg.draw.rect(
                 screen,
@@ -628,6 +620,33 @@ class Transition:
         return fade_complete
 
 
+# Gui buttons
+start_button = button.Button(
+    SCREEN_WIDTH // 2,
+    SCREEN_HEIGHT // 2,
+    start_img,
+)
+exit_button = button.Button(
+    SCREEN_WIDTH // 2 - start_img.get_width() - 50,
+    SCREEN_HEIGHT // 2,
+    exit_img,
+)
+leaderboard_button = button.Button(
+    SCREEN_WIDTH // 2 + start_img.get_width() + 50,
+    SCREEN_HEIGHT // 2,
+    leaderboard_img,
+)
+restart_button = button.Button(
+    SCREEN_WIDTH // 2,
+    SCREEN_HEIGHT // 2,
+    restart_img,
+)
+
+save_button = button.Button(
+    SCREEN_WIDTH - 150, SCREEN_HEIGHT - 270, save_img, 0.85)
+
+leaderboard_panel = Panel(
+    SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, leaderboard_panel_img)
 # Screen transition
 death_transition = Transition(2, (26, 37, 39), 10)
 level_transition = Transition(1, (0, 0, 0), 10)
@@ -648,7 +667,7 @@ world_data = [[-1 for __ in range(COLS)] for _ in range(ROWS)]
 
 # load level data
 with open(
-    f"ProyectoFinal\\assets\\maps\\levels\\level{level}_data.csv", newline=""
+    f"{current_dir}/assets/maps/levels/level{level}_data.csv", newline=""
 ) as csvfile:
     reader = csv.reader(csvfile, delimiter=",")
     for y, row in enumerate(reader):
@@ -704,7 +723,7 @@ def draw_endscreen():
 
 while gameRunning:
 
-    time_delta = clock.tick(FPS) / 1000.0
+    clock.tick(FPS)
 
     if not start_game:
         screen.blit(BACKGROUND, (0, 0))
@@ -722,7 +741,8 @@ while gameRunning:
         drawBG()
         world.draw()
         draw_text(
-            f"Score: {player.score}", font, (255, 255, 255), SCREEN_WIDTH - 150, 20
+            f"Score: {player.score}", font, (255,
+                                             255, 255), SCREEN_WIDTH - 150, 20
         )
         draw_text("Health: ", font, (255, 255, 255), 15, 20)
         for i in range(player.health // 10):
@@ -747,12 +767,15 @@ while gameRunning:
 
         if player.alive and not finish_game:
             if player.isJumping:
-                player.update_action(2)  # update animation to jumping (index 2)
+                # update animation to jumping (index 2)
+                player.update_action(2)
             elif moving_left or moving_right:
-                player.update_action(1)  # update animation to walking (index 1)
+                # update animation to walking (index 1)
+                player.update_action(1)
             else:
                 player.update_action(0)
-            screen_scroll, level_complete = player.move(moving_left, moving_right)
+            screen_scroll, level_complete = player.move(
+                moving_left, moving_right)
             bg_scroll -= screen_scroll
             # Check if level complete
             if level_complete:
@@ -764,7 +787,7 @@ while gameRunning:
                 if level <= MAX_LEVELS:
                     # load in level data and create world
                     with open(
-                        f"ProyectoFinal\\assets\\maps\\levels\\level{level}_data.csv",
+                        f"{current_dir}/assets/maps/levels/level{level}_data.csv",
                         newline="",
                     ) as csvfile:
                         reader = csv.reader(csvfile, delimiter=",")
@@ -793,7 +816,7 @@ while gameRunning:
                 world_data = reset_level()
                 # load in level data and create world
                 with open(
-                    f"ProyectoFinal\\assets\\maps\\levels\\level{level}_data.csv",
+                    f"{current_dir}/assets/maps/levels/level{level}_data.csv",
                     newline="",
                 ) as csvfile:
                     reader = csv.reader(csvfile, delimiter=",")
@@ -834,6 +857,18 @@ if user_text:
     scores[user_text] = global_score
 
 scores_sorted = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
-with open("ProyectoFinal\\assets\\scores.json", "w") as scores_json:
+with open(f"{current_dir}/assets/scores.json", "w") as scores_json:
     json.dump(scores_sorted, scores_json)
 pg.quit()
+
+
+"""
+Integrantes:
+- Leonardo Candio
+- Renzo Acervo
+- Diego Diaz
+- Alejandro Barturen
+- Nicolas Arce
+
+LINK VIDEO: https://drive.google.com/file/d/15z9m-ZPqr6t9TvO4jMjdmx9K3rCVQFCk/view?usp=sharing
+"""
